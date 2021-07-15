@@ -1,10 +1,11 @@
 import math
 from typing import Tuple
+from operator import add
 from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
 
-from numpy import double
+from numpy import angle, double
 
 class LSystem:
   forwardDrawSymbols = ('F', 'G')
@@ -16,11 +17,13 @@ class LSystem:
     self.angle = angle
     self.initialString = initialString
     self.initialDirection = initialDirection
+    self.initRotatedVectors()
+
+  def initRotatedVectors(self):
     self.rotatedVectors = {0 : self.initialDirection} # cached
 
   def getKthRotatedUnitVector(self, k : int):
     if k not in self.rotatedVectors: # TODO: modulo 2 * pi / theta
-      print(self.initialDirection)
       idx0, idx1 = self.initialDirection
       coskth = math.cos(self.angle * k)
       sinkth = math.sin(self.angle * k)
@@ -47,11 +50,11 @@ class LSystem:
     rotationIndex = 0
     for symbol in finalString:
       if symbol in self.forwardDrawSymbols:
-        nextPoint = (currentPoint[0] + currentDirection[0], currentPoint[1] + currentDirection[1])
+        nextPoint = tuple(map(add, currentPoint, currentDirection))
         segments.append((currentPoint, nextPoint))
         currentPoint = nextPoint
       if symbol in self.forwardJumpSymbols:
-        nextPoint = (currentPoint[0] + currentDirection[0], currentPoint[1] + currentDirection[1])
+        nextPoint = tuple(map(add, currentPoint, currentDirection))
         currentPoint = nextPoint
       elif symbol == '+':
         rotationIndex += 1
@@ -60,12 +63,85 @@ class LSystem:
         rotationIndex -= 1
         currentDirection = self.getKthRotatedUnitVector(rotationIndex)
       elif symbol == '[':
-        stack.append((currentPoint, rotationIndex))
+        stack.append((currentPoint, currentDirection, rotationIndex))
       elif symbol == ']':
-        #print(stack)
-        currentPoint, rotationIndex = stack.pop()
-        currentDirection = self.getKthRotatedUnitVector(rotationIndex)
-        #print(currentDirection)
+        currentPoint, currentDirection, rotationIndex = stack.pop()
+    return segments
+
+class LSystem3D(LSystem):
+  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str, initialDirection = (1, 0, 0)):
+    LSystem.__init__(self, variables, constants, rules, angle, initialString, initialDirection)
+
+  def initRotatedVectors(self):
+    self.rotatedVectorsU = {0 : self.initialDirection}
+    self.rotatedVectorsL = {0 : self.initialDirection}
+    self.rotatedVectorsH = {0 : self.initialDirection}
+
+  def getKthRotatedUnitVectorU(self, k : int):
+    if k not in self.rotatedVectorsU:
+      idx0, idx1, idx2 = self.initialDirection
+      coskth = math.cos(self.angle * k)
+      sinkth = math.sin(self.angle * k)
+      self.rotatedVectorsU[k] = coskth * idx0 + sinkth * idx1, - sinkth * idx0 + coskth * idx1, idx2
+    return self.rotatedVectorsU[k]
+
+  def getKthRotatedUnitVectorL(self, k : int):
+    if k not in self.rotatedVectorsL:
+      idx0, idx1, idx2 = self.initialDirection
+      coskth = math.cos(self.angle * k)
+      sinkth = math.sin(self.angle * k)
+      self.rotatedVectorsL[k] = coskth * idx0 - sinkth * idx2, idx1, sinkth * idx0 + coskth * idx2
+    return self.rotatedVectorsL[k]
+
+  def getKthRotatedUnitVectorH(self, k : int):
+    if k not in self.rotatedVectorsH:
+      idx0, idx1, idx2 = self.initialDirection
+      coskth = math.cos(self.angle * k)
+      sinkth = math.sin(self.angle * k)
+      self.rotatedVectorsH[k] = idx0, coskth * idx1 - sinkth * idx2, sinkth * idx1 + coskth * idx2
+    return self.rotatedVectorsH[k]
+
+  def getSegments(self, finalString : str):
+    currentPoint = (0, 0, 0)
+    currentDirection = self.initialDirection
+    segments = []
+    stack = []
+    rotationIndexU = 0
+    rotationIndexL = 0
+    rotationIndexH = 0
+    for symbol in finalString:
+      if symbol in self.forwardDrawSymbols:
+        nextPoint = tuple(map(add, currentPoint, currentDirection))
+        segments.append((currentPoint, nextPoint))
+        currentPoint = nextPoint
+      if symbol in self.forwardJumpSymbols:
+        nextPoint = tuple(map(add, currentPoint, currentDirection))
+        currentPoint = nextPoint
+      elif symbol == '+':
+        rotationIndexU += 1
+        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+      elif symbol == '-':
+        rotationIndexU -= 1
+        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+      elif symbol == '&':
+        rotationIndexL += 1
+        currentDirection = self.getKthRotatedUnitVectorL(rotationIndexL)
+      elif symbol == '^':
+        rotationIndexL -= 1
+        currentDirection = self.getKthRotatedUnitVectorL(rotationIndexL)
+      elif symbol == '\\':
+        rotationIndexH += 1
+        currentDirection = self.getKthRotatedUnitVectorH(rotationIndexH)
+      elif symbol == '/':
+        rotationIndexH -= 1
+        currentDirection = self.getKthRotatedUnitVectorH(rotationIndexH)
+      elif symbol == '|':
+        rotationIndexU += math.pi / self.angle # TODO: will not work for non-integer
+        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+      elif symbol == '[':
+        stack.append((currentPoint, currentDirection, rotationIndexU, rotationIndexL, rotationIndexH))
+      elif symbol == ']':
+        currentPoint, currentDirection, rotationIndexU, rotationIndexL, rotationIndexH = stack.pop()
     return segments
 
 class KochCurve(LSystem):
@@ -242,6 +318,24 @@ class FractalPlantF(LSystem):
       (0, 1)
       )
 
+class HilberCurve3D(LSystem3D):
+    # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 20
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('A', 'B', 'C', 'D'),
+      ('F', '+', '-', '&', '^', '\\', '/', '|'),
+      {
+        'A' : 'B-F+CFC+F-D&F^D-F+&&CFC+F+B//',
+        'B' : 'A&F^CFB^F^D^^-F-D^|F^B|FC^F^A//',
+        'C' : '|D^|F^B-F+C^F^A&&FA&F^C+F+B^F^D//',
+        'D' : '|CFB-F+B|FA&F^A&&FB-F+B|FC//'
+      },
+      math.pi / 2,
+      'A',
+      (1, 0, 0)
+      )
+
 def plot(segments):
   lineSegments = LineCollection(segments)
   _, ax = plt.subplots()
@@ -253,13 +347,29 @@ def plot(segments):
   plt.tight_layout()
   plt.show()
 
+def getAxesLimits(segments):
+  coordinates = [c for s in segments for p in s for c in p]
+  return (min(coordinates), max(coordinates))
+
+def plot3D(segments):
+  lineSegments = Line3DCollection(segments)
+  ax = plt.figure().add_subplot(projection='3d')
+  ax.add_collection3d(lineSegments)
+  axesLimits = getAxesLimits(segments)
+  ax.set_xlim3d(axesLimits[0], axesLimits[1])
+  ax.set_ylim3d(axesLimits[0], axesLimits[1])
+  ax.set_zlim3d(axesLimits[0], axesLimits[1])
+  ax.set_aspect('auto')
+  plt.show()
+
 def run():
-  system = IslandSnakeCombination()
-  iter = 3
+  system = HilberCurve3D()
+  iter = 1
   finalString = system.getFinalString(iter)
   print(finalString)
   segments = system.getSegments(finalString)
-  plot(segments)
+  print(segments)
+  plot3D(segments)
 
 if __name__ == '__main__':
   run()
