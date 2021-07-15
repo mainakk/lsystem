@@ -1,6 +1,6 @@
 import math
 from typing import Tuple
-from operator import add
+from operator import add, neg
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import matplotlib.pyplot as plt
@@ -71,44 +71,32 @@ class LSystem:
 class LSystem3D(LSystem):
   def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str, initialDirection = (1, 0, 0)):
     LSystem.__init__(self, variables, constants, rules, angle, initialString, initialDirection)
+    self.costh = math.cos(self.angle)
+    self.sinth = math.sin(self.angle)
 
-  def initRotatedVectors(self):
-    self.rotatedVectorsU = {0 : self.initialDirection}
-    self.rotatedVectorsL = {0 : self.initialDirection}
-    self.rotatedVectorsH = {0 : self.initialDirection}
+  def rotateUP(self, v : Tuple[double, ...]):
+    return (self.costh * v[0] + self.sinth * v[1], - self.sinth * v[0] + self.costh * v[1], v[2])
 
-  def getKthRotatedUnitVectorU(self, k : int):
-    if k not in self.rotatedVectorsU:
-      idx0, idx1, idx2 = self.initialDirection
-      coskth = math.cos(self.angle * k)
-      sinkth = math.sin(self.angle * k)
-      self.rotatedVectorsU[k] = coskth * idx0 + sinkth * idx1, - sinkth * idx0 + coskth * idx1, idx2
-    return self.rotatedVectorsU[k]
+  def rotateUN(self, v : Tuple[double, ...]):
+    return (self.costh * v[0] - self.sinth * v[1], self.sinth * v[0] + self.costh * v[1], v[2])
 
-  def getKthRotatedUnitVectorL(self, k : int):
-    if k not in self.rotatedVectorsL:
-      idx0, idx1, idx2 = self.initialDirection
-      coskth = math.cos(self.angle * k)
-      sinkth = math.sin(self.angle * k)
-      self.rotatedVectorsL[k] = coskth * idx0 - sinkth * idx2, idx1, sinkth * idx0 + coskth * idx2
-    return self.rotatedVectorsL[k]
+  def rotateLP(self, v : Tuple[double, ...]):
+    return (self.costh * v[0] - self.sinth * v[2], v[1], self.sinth * v[0] + self.costh * v[2])
 
-  def getKthRotatedUnitVectorH(self, k : int):
-    if k not in self.rotatedVectorsH:
-      idx0, idx1, idx2 = self.initialDirection
-      coskth = math.cos(self.angle * k)
-      sinkth = math.sin(self.angle * k)
-      self.rotatedVectorsH[k] = idx0, coskth * idx1 - sinkth * idx2, sinkth * idx1 + coskth * idx2
-    return self.rotatedVectorsH[k]
+  def rotateLN(self, v : Tuple[double, ...]):
+    return (self.costh * v[0] + self.sinth * v[2], v[1], - self.sinth * v[0] + self.costh * v[2])
+
+  def rotateHP(self, v : Tuple[double, ...]):
+    return (v[0], self.costh * v[1] - self.sinth * v[2], self.sinth * v[1] + self.costh * v[2])
+
+  def rotateHN(self, v : Tuple[double, ...]):
+    return (v[0], self.costh * v[1] + self.sinth * v[2], - self.sinth * v[1] + self.costh * v[2])
 
   def getSegments(self, finalString : str):
     currentPoint = (0, 0, 0)
     currentDirection = self.initialDirection
     segments = []
     stack = []
-    rotationIndexU = 0
-    rotationIndexL = 0
-    rotationIndexH = 0
     for symbol in finalString:
       if symbol in self.forwardDrawSymbols:
         nextPoint = tuple(map(add, currentPoint, currentDirection))
@@ -118,30 +106,23 @@ class LSystem3D(LSystem):
         nextPoint = tuple(map(add, currentPoint, currentDirection))
         currentPoint = nextPoint
       elif symbol == '+':
-        rotationIndexU += 1
-        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+        currentDirection = self.rotateUP(currentDirection)
       elif symbol == '-':
-        rotationIndexU -= 1
-        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+        currentDirection = self.rotateUN(currentDirection)
       elif symbol == '&':
-        rotationIndexL += 1
-        currentDirection = self.getKthRotatedUnitVectorL(rotationIndexL)
+        currentDirection = self.rotateLP(currentDirection)
       elif symbol == '^':
-        rotationIndexL -= 1
-        currentDirection = self.getKthRotatedUnitVectorL(rotationIndexL)
+        currentDirection = self.rotateLN(currentDirection)
       elif symbol == '\\':
-        rotationIndexH += 1
-        currentDirection = self.getKthRotatedUnitVectorH(rotationIndexH)
+        currentDirection = self.rotateHP(currentDirection)
       elif symbol == '/':
-        rotationIndexH -= 1
-        currentDirection = self.getKthRotatedUnitVectorH(rotationIndexH)
+        currentDirection = self.rotateHN(currentDirection)
       elif symbol == '|':
-        rotationIndexU += math.pi / self.angle # TODO: will not work for non-integer
-        currentDirection = self.getKthRotatedUnitVectorU(rotationIndexU)
+        currentDirection = tuple(map(neg, currentDirection))
       elif symbol == '[':
-        stack.append((currentPoint, currentDirection, rotationIndexU, rotationIndexL, rotationIndexH))
+        stack.append((currentPoint, currentDirection))
       elif symbol == ']':
-        currentPoint, currentDirection, rotationIndexU, rotationIndexL, rotationIndexH = stack.pop()
+        currentPoint, currentDirection = stack.pop()
     return segments
 
 class KochCurve(LSystem):
@@ -321,7 +302,7 @@ class FractalPlantF(LSystem):
 class HilberCurve3D(LSystem3D):
     # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 20
   def __init__(self):
-    LSystem.__init__(
+    LSystem3D.__init__(
       self,
       ('A', 'B', 'C', 'D'),
       ('F', '+', '-', '&', '^', '\\', '/', '|'),
