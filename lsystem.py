@@ -9,17 +9,22 @@ from numpy import double
 class LSystem:
   forwardDrawSymbols = ('F', 'G')
   forwardJumpSymbols = ('f', 'g')
-  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str):
+  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str, initialDirection = (1, 0)):
     self.variables = variables
     self.constants = constants
     self.rules = rules
     self.angle = angle
     self.initialString = initialString
-    self.rotatedVectors = {0 : (1, 0)} # cached
+    self.initialDirection = initialDirection
+    self.rotatedVectors = {0 : self.initialDirection} # cached
 
   def getKthRotatedUnitVector(self, k : int):
     if k not in self.rotatedVectors: # TODO: modulo 2 * pi / theta
-      self.rotatedVectors[k] = math.cos(self.angle * k), math.sin(self.angle * k)
+      print(self.initialDirection)
+      idx0, idx1 = self.initialDirection
+      coskth = math.cos(self.angle * k)
+      sinkth = math.sin(self.angle * k)
+      self.rotatedVectors[k] = coskth * idx0 - sinkth * idx1, sinkth * idx0 + coskth * idx1
     return self.rotatedVectors[k]
 
   def getFinalString(self, iter : int):
@@ -36,7 +41,7 @@ class LSystem:
 
   def getSegments(self, finalString : str):
     currentPoint = (0, 0)
-    currentDirection = (1, 0) # TODO: compute initial direction
+    currentDirection = self.initialDirection
     segments = []
     stack = []
     rotationIndex = 0
@@ -55,13 +60,16 @@ class LSystem:
         rotationIndex -= 1
         currentDirection = self.getKthRotatedUnitVector(rotationIndex)
       elif symbol == '[':
-        stack.append(currentPoint)
+        stack.append((currentPoint, rotationIndex))
       elif symbol == ']':
-        currentPoint = stack.pop()
+        #print(stack)
+        currentPoint, rotationIndex = stack.pop()
+        currentDirection = self.getKthRotatedUnitVector(rotationIndex)
+        #print(currentDirection)
     return segments
 
 class KochCurve(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
   def __init__(self):
     LSystem.__init__(
       self, 
@@ -73,7 +81,7 @@ class KochCurve(LSystem):
       )
 
 class QuadraticKochIsland(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
   def __init__(self):
     LSystem.__init__(
       self, 
@@ -85,7 +93,7 @@ class QuadraticKochIsland(LSystem):
       )
 
 class IslandSnakeCombination(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
   def __init__(self):
     LSystem.__init__(
       self, 
@@ -133,7 +141,7 @@ class SerpenskiCurve(LSystem):
       )
 
 class DragonCurve(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 11
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 11
   def __init__(self):
     LSystem.__init__(
       self,
@@ -145,7 +153,7 @@ class DragonCurve(LSystem):
       )
 
 class SerpenskiGasket(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 11
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 11
   def __init__(self):
     LSystem.__init__(
       self,
@@ -156,20 +164,8 @@ class SerpenskiGasket(LSystem):
       'G'
       )
 
-class FractalPlant(LSystem):
-  # https://en.wikipedia.org/wiki/L-system#Example_7:_Fractal_plant
-  def __init__(self):
-    LSystem.__init__(
-      self,
-      ('X', 'F'),
-      ('+', '-', '[', ']'),
-      {'X' : 'F+[[X]-X]-F[-FX]+X', 'F' : 'FF'},
-      math.pi * 25 / 180,
-      'X'
-      )
-
 class FractalPlantA(LSystem):
-  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
   def __init__(self):
     LSystem.__init__(
       self,
@@ -177,7 +173,73 @@ class FractalPlantA(LSystem):
       ('+', '-', '[', ']'),
       {'F' : 'F[+F]F[-F]F'},
       math.pi * 25.7 / 180,
-      'F'
+      'F',
+      (0, 1)
+      )
+
+class FractalPlantB(LSystem):
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('F'),
+      ('+', '-', '[', ']'),
+      {'F' : 'F[+F]F[-F][F]'},
+      math.pi * 20 / 180,
+      'F',
+      (0, 1)
+      )
+
+class FractalPlantC(LSystem):
+  # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('F'),
+      ('+', '-', '[', ']'),
+      {'F' : 'FF-[-F+F+F]+[+F-F-F]'},
+      math.pi * 22.5 / 180,
+      'F',
+      (0, 1)
+      )
+
+class FractalPlantD(LSystem):
+    # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('X', 'F'),
+      ('+', '-', '[', ']'),
+      {'X' : 'F[+X]F[-X]+X', 'F' : 'FF'},
+      math.pi * 20 / 180,
+      'X',
+      (0, 1)
+      )
+
+class FractalPlantE(LSystem):
+    # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('X', 'F'),
+      ('+', '-', '[', ']'),
+      {'X' : 'F[+X][-X]FX', 'F' : 'FF'},
+      math.pi * 25.7 / 180,
+      'X',
+      (0, 1)
+      )
+
+class FractalPlantF(LSystem):
+    # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 25
+  def __init__(self):
+    LSystem.__init__(
+      self,
+      ('X', 'F'),
+      ('+', '-', '[', ']'),
+      {'X' : 'F-[[X]+X]+F[+FX]-X', 'F' : 'FF'},
+      math.pi * 22.5 / 180,
+      'X',
+      (0, 1)
       )
 
 def plot(segments):
@@ -192,8 +254,8 @@ def plot(segments):
   plt.show()
 
 def run():
-  system = FractalPlant()
-  iter = 2
+  system = IslandSnakeCombination()
+  iter = 3
   finalString = system.getFinalString(iter)
   print(finalString)
   segments = system.getSegments(finalString)
