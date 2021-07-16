@@ -5,6 +5,7 @@ from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 class LSystem:
   forwardDrawSymbols = ('F', 'G')
@@ -69,46 +70,43 @@ class LSystem:
 
 class LSystem3D(LSystem):
   def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : float, initialString : str,
-               initialHeadDirection = (0, 0, 1), initialLeftArmDirection = (-1, 0, 0)):
+               initialHeadDirection = np.array([0, 0, 1]), initialLeftArmDirection = np.array([-1, 0, 0])):
     LSystem.__init__(self, variables, constants, rules, angle, initialString)
     self.initialHeadDirection = initialHeadDirection
     self.initialLeftArmDirection = initialLeftArmDirection
 
   def getSegments(self, finalString : str):
-    currentPoint = (0, 0, 0)
+    currentPoint = np.array([0, 0, 0])
     currentHeadDirection = self.initialHeadDirection
     currentLeftArmDirection = self.initialLeftArmDirection
     segments = []
     stack = []
     for symbol in finalString:
       if symbol in self.forwardDrawSymbols:
-        nextPoint = tuple(map(add, currentPoint, currentHeadDirection))
+        nextPoint = currentPoint + currentHeadDirection
         segments.append((currentPoint, nextPoint))
         currentPoint = nextPoint
       if symbol in self.forwardJumpSymbols:
-        nextPoint = tuple(map(add, currentPoint, currentHeadDirection))
-        currentPoint = nextPoint
-      elif symbol == '+':
-        temp = currentHeadDirection
-        currentHeadDirection = currentLeftArmDirection
-        currentLeftArmDirection = tuple(map(neg, temp))
-      elif symbol == '-':
-        temp = currentHeadDirection
-        currentHeadDirection = tuple(map(neg, currentLeftArmDirection))
-        currentLeftArmDirection = temp
-      elif symbol == '&':
-        temp = currentHeadDirection
-        currentHeadDirection = tuple(np.cross(currentLeftArmDirection, currentHeadDirection))
-      elif symbol == '^':
-        temp = currentHeadDirection
-        currentHeadDirection = tuple(np.cross(currentHeadDirection, currentLeftArmDirection))
-      elif symbol == '\\':
-        currentLeftArmDirection = tuple(np.cross(currentHeadDirection, currentLeftArmDirection))
-      elif symbol == '/':
-        currentLeftArmDirection = tuple(np.cross(currentLeftArmDirection, currentHeadDirection))
+        currentPoint = currentPoint + currentHeadDirection
+      elif symbol in '+-&^\\/':
+        if symbol == '+':
+          rotationAxis = np.cross(currentHeadDirection, currentLeftArmDirection)
+        elif symbol == '-':
+          rotationAxis = np.cross(currentLeftArmDirection, currentHeadDirection)
+        elif symbol == '&':
+          rotationAxis = currentLeftArmDirection
+        elif symbol == '^':
+          rotationAxis = -currentLeftArmDirection
+        elif symbol == '\\':
+          rotationAxis = currentHeadDirection
+        elif symbol == '/':
+          rotationAxis = -currentHeadDirection
+        r = R.from_rotvec(self.angle * rotationAxis)
+        currentHeadDirection = r.apply(currentHeadDirection)
+        currentLeftArmDirection = r.apply(currentLeftArmDirection)
       elif symbol == '|':
-        currentHeadDirection = tuple(map(neg, currentHeadDirection))
-        currentLeftArmDirection = tuple(map(neg, currentLeftArmDirection))
+        currentHeadDirection = -currentHeadDirection
+        currentLeftArmDirection = -currentLeftArmDirection
       elif symbol == '[':
         stack.append((currentPoint, currentHeadDirection, currentLeftArmDirection))
       elif symbol == ']':
@@ -303,8 +301,7 @@ class HilberCurve3D(LSystem3D):
         'D' : '|CFB-F+B|FA&F^A&&FB-F+B|FC//'
       },
       math.pi / 2,
-      'A',
-      (0, -1, 0)
+      'A'
       )
 
 def plot(segments):
