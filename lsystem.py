@@ -304,6 +304,23 @@ class HilberCurve3D(LSystem3D):
       'A'
       )
 
+class Bush3D(LSystem3D):
+    # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 26
+  def __init__(self):
+    LSystem3D.__init__(
+      self,
+      ('A', 'F', 'S', 'L'),
+      ('f', '+', '-', '&', '^', '\\', '/', '|', '[', ']', '!', '\''),
+      {
+        'A' : '[&FL!A]/////\'[&FL!A]///////\'[&FL!A]',
+        'F' : 'S/////F',
+        'S' : 'FL',
+        'L' : '[\'\'\'^^{-f+f+f-|-f+f+f}]'
+      },
+      math.pi / 8,
+      'A'
+      )
+
 def plot(segments):
   lineSegments = LineCollection(segments)
   _, ax = plt.subplots()
@@ -331,8 +348,8 @@ def plot3D(segments):
   plt.show()
 
 def run():
-  system = HilberCurve3D()
-  iter = 3
+  system = Bush3D()
+  iter = 7
   finalString = system.getFinalString(iter)
   print(finalString)
   segments = system.getSegments(finalString)
