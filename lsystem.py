@@ -4,13 +4,12 @@ from operator import add, neg
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import matplotlib.pyplot as plt
-
-from numpy import angle, double
+import numpy as np
 
 class LSystem:
   forwardDrawSymbols = ('F', 'G')
   forwardJumpSymbols = ('f', 'g')
-  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str, initialDirection = (1, 0)):
+  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : float, initialString : str, initialDirection = (1, 0)):
     self.variables = variables
     self.constants = constants
     self.rules = rules
@@ -69,60 +68,51 @@ class LSystem:
     return segments
 
 class LSystem3D(LSystem):
-  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : double, initialString : str, initialDirection = (1, 0, 0)):
-    LSystem.__init__(self, variables, constants, rules, angle, initialString, initialDirection)
-    self.costh = math.cos(self.angle)
-    self.sinth = math.sin(self.angle)
-
-  def rotateUP(self, v : Tuple[double, ...]):
-    return (self.costh * v[0] + self.sinth * v[1], - self.sinth * v[0] + self.costh * v[1], v[2])
-
-  def rotateUN(self, v : Tuple[double, ...]):
-    return (self.costh * v[0] - self.sinth * v[1], self.sinth * v[0] + self.costh * v[1], v[2])
-
-  def rotateLP(self, v : Tuple[double, ...]):
-    return (self.costh * v[0] - self.sinth * v[2], v[1], self.sinth * v[0] + self.costh * v[2])
-
-  def rotateLN(self, v : Tuple[double, ...]):
-    return (self.costh * v[0] + self.sinth * v[2], v[1], - self.sinth * v[0] + self.costh * v[2])
-
-  def rotateHP(self, v : Tuple[double, ...]):
-    return (v[0], self.costh * v[1] - self.sinth * v[2], self.sinth * v[1] + self.costh * v[2])
-
-  def rotateHN(self, v : Tuple[double, ...]):
-    return (v[0], self.costh * v[1] + self.sinth * v[2], - self.sinth * v[1] + self.costh * v[2])
+  def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : float, initialString : str,
+               initialHeadDirection = (0, 0, 1), initialLeftArmDirection = (-1, 0, 0)):
+    LSystem.__init__(self, variables, constants, rules, angle, initialString)
+    self.initialHeadDirection = initialHeadDirection
+    self.initialLeftArmDirection = initialLeftArmDirection
 
   def getSegments(self, finalString : str):
     currentPoint = (0, 0, 0)
-    currentDirection = self.initialDirection
+    currentHeadDirection = self.initialHeadDirection
+    currentLeftArmDirection = self.initialLeftArmDirection
     segments = []
     stack = []
     for symbol in finalString:
       if symbol in self.forwardDrawSymbols:
-        nextPoint = tuple(map(add, currentPoint, currentDirection))
+        nextPoint = tuple(map(add, currentPoint, currentHeadDirection))
         segments.append((currentPoint, nextPoint))
         currentPoint = nextPoint
       if symbol in self.forwardJumpSymbols:
-        nextPoint = tuple(map(add, currentPoint, currentDirection))
+        nextPoint = tuple(map(add, currentPoint, currentHeadDirection))
         currentPoint = nextPoint
       elif symbol == '+':
-        currentDirection = self.rotateUP(currentDirection)
+        temp = currentHeadDirection
+        currentHeadDirection = currentLeftArmDirection
+        currentLeftArmDirection = tuple(map(neg, temp))
       elif symbol == '-':
-        currentDirection = self.rotateUN(currentDirection)
+        temp = currentHeadDirection
+        currentHeadDirection = tuple(map(neg, currentLeftArmDirection))
+        currentLeftArmDirection = temp
       elif symbol == '&':
-        currentDirection = self.rotateLP(currentDirection)
+        temp = currentHeadDirection
+        currentHeadDirection = tuple(np.cross(currentLeftArmDirection, currentHeadDirection))
       elif symbol == '^':
-        currentDirection = self.rotateLN(currentDirection)
+        temp = currentHeadDirection
+        currentHeadDirection = tuple(np.cross(currentHeadDirection, currentLeftArmDirection))
       elif symbol == '\\':
-        currentDirection = self.rotateHP(currentDirection)
+        currentLeftArmDirection = tuple(np.cross(currentHeadDirection, currentLeftArmDirection))
       elif symbol == '/':
-        currentDirection = self.rotateHN(currentDirection)
+        currentLeftArmDirection = tuple(np.cross(currentLeftArmDirection, currentHeadDirection))
       elif symbol == '|':
-        currentDirection = tuple(map(neg, currentDirection))
+        currentHeadDirection = tuple(map(neg, currentHeadDirection))
+        currentLeftArmDirection = tuple(map(neg, currentLeftArmDirection))
       elif symbol == '[':
-        stack.append((currentPoint, currentDirection))
+        stack.append((currentPoint, currentHeadDirection, currentLeftArmDirection))
       elif symbol == ']':
-        currentPoint, currentDirection = stack.pop()
+        currentPoint, currentHeadDirection, currentLeftArmDirection = stack.pop()
     return segments
 
 class KochCurve(LSystem):
@@ -314,7 +304,7 @@ class HilberCurve3D(LSystem3D):
       },
       math.pi / 2,
       'A',
-      (1, 0, 0)
+      (0, -1, 0)
       )
 
 def plot(segments):
@@ -345,7 +335,7 @@ def plot3D(segments):
 
 def run():
   system = HilberCurve3D()
-  iter = 1
+  iter = 3
   finalString = system.getFinalString(iter)
   print(finalString)
   segments = system.getSegments(finalString)
