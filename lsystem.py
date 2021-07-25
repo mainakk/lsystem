@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.transform import Rotation as R
+import matplotlib.colors as mcolors
 
 class LSystem:
   forwardDrawSymbols = ('F', 'G')
@@ -69,6 +70,7 @@ class LSystem:
     return segments
 
 class LSystem3D(LSystem):
+  colors = (mcolors.to_rgba('saddlebrown'), mcolors.to_rgba('green'))
   def __init__(self, variables : Tuple[str, ...], constants : Tuple[str, ...], rules : dict[str, str], angle : float, initialString : str,
                initialHeadDirection = np.array([0, 0, 1]), initialLeftArmDirection = np.array([-1, 0, 0])):
     LSystem.__init__(self, variables, constants, rules, angle, initialString)
@@ -79,15 +81,21 @@ class LSystem3D(LSystem):
     currentPoint = np.array([0, 0, 0])
     currentHeadDirection = self.initialHeadDirection
     currentLeftArmDirection = self.initialLeftArmDirection
+    currentColorIndex = 0
     segments = []
+    segmentColors = []
     stack = []
     for symbol in finalString:
       if symbol in self.forwardDrawSymbols:
-        nextPoint = currentPoint + currentHeadDirection
+        strideLength = 1 if symbol.isupper() else 0.1
+        nextPoint = currentPoint + currentHeadDirection * strideLength
         segments.append((currentPoint, nextPoint))
         currentPoint = nextPoint
+        #print(currentColorIndex)
+        segmentColors.append(self.colors[currentColorIndex])
       if symbol in self.forwardJumpSymbols:
-        currentPoint = currentPoint + currentHeadDirection
+        strideLength = 1 if symbol.isupper() else 0.1
+        currentPoint = currentPoint + currentHeadDirection * strideLength
       elif symbol in '+-&^\\/':
         if symbol == '+':
           rotationAxis = np.cross(currentHeadDirection, currentLeftArmDirection)
@@ -108,10 +116,12 @@ class LSystem3D(LSystem):
         currentHeadDirection = -currentHeadDirection
         currentLeftArmDirection = -currentLeftArmDirection
       elif symbol == '[':
-        stack.append((currentPoint, currentHeadDirection, currentLeftArmDirection))
+        stack.append((currentPoint, currentHeadDirection, currentLeftArmDirection, currentColorIndex))
       elif symbol == ']':
-        currentPoint, currentHeadDirection, currentLeftArmDirection = stack.pop()
-    return segments
+        currentPoint, currentHeadDirection, currentLeftArmDirection, currentColorIndex = stack.pop()
+      elif symbol == '\'':
+        currentColorIndex = (currentColorIndex + 1) % len(self.colors)
+    return segments, segmentColors
 
 class KochCurve(LSystem):
   # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 9
@@ -306,6 +316,7 @@ class HilberCurve3D(LSystem3D):
 
 class Bush3D(LSystem3D):
     # Lindenmayer, A., Prusinkiewicz, P. (2012). The Algorithmic Beauty of Plants. United States: Springer New York. p. 26
+  forwardDrawSymbols = ['F', 'f']
   def __init__(self):
     LSystem3D.__init__(
       self,
@@ -336,8 +347,9 @@ def getAxesLimits(segments):
   coordinates = [c for s in segments for p in s for c in p]
   return (min(coordinates), max(coordinates))
 
-def plot3D(segments):
-  lineSegments = Line3DCollection(segments)
+def plot3D(segments, segmentColors):
+  colors = [mcolors.to_rgba('green')] * len(segments)
+  lineSegments = Line3DCollection(segments, colors=colors)
   ax = plt.figure().add_subplot(projection='3d')
   ax.add_collection3d(lineSegments)
   axesLimits = getAxesLimits(segments)
@@ -352,9 +364,9 @@ def run():
   iter = 7
   finalString = system.getFinalString(iter)
   print(finalString)
-  segments = system.getSegments(finalString)
+  segments, segmentColors = system.getSegments(finalString)
   print(segments)
-  plot3D(segments)
+  plot3D(segments, segmentColors)
 
 if __name__ == '__main__':
   run()
